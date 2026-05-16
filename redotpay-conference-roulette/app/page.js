@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getEvents, createEvent as dbCreateEvent, deleteEvent as dbDeleteEvent, getConfig, setConfig, getAllPlays } from "@/lib/supabase";
 import { useI18n, LanguageSelector } from "@/lib/i18n";
 import { useRouter } from "next/navigation";
@@ -24,52 +24,40 @@ const inputStyle = {
   borderRadius: 14, padding: "14px 18px", outline: "none", width: "100%",
 };
 
-// ============ EMOJI DB ============
-const EMOJI_DB = [
-  { e:"🇧🇷",t:"brazil"},{e:"🇲🇽",t:"mexico"},{e:"🇳🇱",t:"netherlands"},{e:"🇺🇸",t:"usa united states"},
-  {e:"🇯🇵",t:"japan"},{e:"🇰🇷",t:"korea"},{e:"🇹🇭",t:"thailand"},{e:"🇻🇳",t:"vietnam"},
-  {e:"🇵🇭",t:"philippines"},{e:"🇮🇩",t:"indonesia"},{e:"🇨🇳",t:"china"},{e:"🇮🇳",t:"india"},
-  {e:"🇬🇧",t:"uk britain"},{e:"🇫🇷",t:"france"},{e:"🇩🇪",t:"germany"},{e:"🇪🇸",t:"spain"},
-  {e:"🇮🇹",t:"italy"},{e:"🇵🇹",t:"portugal"},{e:"🇦🇺",t:"australia"},{e:"🇨🇦",t:"canada"},
-  {e:"🇦🇷",t:"argentina"},{e:"🇨🇴",t:"colombia"},{e:"🇹🇷",t:"turkey"},{e:"🇦🇪",t:"uae dubai"},
-  {e:"🇸🇬",t:"singapore"},{e:"🇭🇰",t:"hong kong"},{e:"🇹🇼",t:"taiwan"},{e:"🇳🇬",t:"nigeria"},
-  {e:"🇿🇦",t:"south africa"},{e:"🇲🇾",t:"malaysia"},{e:"🇵🇱",t:"poland"},{e:"🇸🇪",t:"sweden"},
-  {e:"🎰",t:"casino roulette"},{e:"🎲",t:"dice game"},{e:"🎯",t:"target"},{e:"🏆",t:"trophy winner"},
-  {e:"⚡",t:"lightning energy"},{e:"🎪",t:"circus event"},{e:"🎉",t:"party celebration"},{e:"🎊",t:"confetti"},
-  {e:"🎈",t:"balloon"},{e:"🎁",t:"gift present"},{e:"🎤",t:"microphone"},{e:"🎵",t:"music"},
-  {e:"💎",t:"diamond crypto"},{e:"🪙",t:"coin token"},{e:"💰",t:"money bag"},{e:"💳",t:"credit card"},
-  {e:"📱",t:"phone mobile"},{e:"💻",t:"laptop computer"},{e:"🌐",t:"globe web"},{e:"🚀",t:"rocket launch"},
-  {e:"🔗",t:"link chain blockchain"},{e:"🤖",t:"robot ai"},{e:"🔒",t:"lock security"},{e:"🔑",t:"key"},
-  {e:"🕶️",t:"sunglasses"},{e:"👕",t:"shirt tshirt"},{e:"👛",t:"wallet purse"},{e:"✨",t:"sparkles"},
-  {e:"🎧",t:"headphones"},{e:"⌚",t:"watch"},{e:"🧢",t:"cap hat"},{e:"🎒",t:"backpack"},
-  {e:"🎮",t:"game controller"},{e:"🎫",t:"ticket"},{e:"🪪",t:"id card"},{e:"📦",t:"package box"},
-  {e:"🥇",t:"gold medal"},{e:"🥈",t:"silver medal"},{e:"🥉",t:"bronze medal"},{e:"📸",t:"camera photo"},
-  {e:"🍕",t:"pizza food"},{e:"☕",t:"coffee"},{e:"🍺",t:"beer"},{e:"🍔",t:"burger food"},
-  {e:"🌮",t:"taco mexican"},{e:"🍣",t:"sushi japanese"},{e:"🍰",t:"cake sweet"},{e:"🥂",t:"champagne"},
-  {e:"🌎",t:"earth americas"},{e:"🌍",t:"earth europe africa"},{e:"🌏",t:"earth asia"},
-  {e:"🔥",t:"fire hot"},{e:"⭐",t:"star"},{e:"🌈",t:"rainbow"},{e:"❤️",t:"heart love"},
-  {e:"👍",t:"thumbs up"},{e:"👏",t:"clap"},{e:"🤝",t:"handshake"},{e:"💪",t:"muscle strong"},
-  {e:"💯",t:"hundred perfect"},{e:"✅",t:"check done"},{e:"🖊️",t:"pen"},{e:"🧸",t:"teddy bear"},
-];
+// Emoji picker uses native OS emoji keyboard
 
-function EmojiPicker({ selected, onSelect, size = 38 }) {
-  const { t } = useI18n();
-  const [search, setSearch] = useState("");
-  const filtered = search.trim() ? EMOJI_DB.filter(x => x.t.includes(search.toLowerCase())) : EMOJI_DB;
+function EmojiPicker({ selected, onSelect }) {
+  const [showPopup, setShowPopup] = useState(false);
+  const inputRef = useRef(null);
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    // Extract the last emoji character entered
+    const emojiMatch = val.match(/(\p{Emoji_Presentation}|\p{Extended_Pictographic})/gu);
+    if (emojiMatch && emojiMatch.length > 0) {
+      onSelect(emojiMatch[emojiMatch.length - 1]);
+      setShowPopup(false);
+    }
+  };
+
   return (
-    <div>
-      <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("searchEmoji")}
-        style={{ ...inputStyle, padding: "8px 14px", fontSize: "0.8rem", marginBottom: 8 }} />
-      <div style={{ display:"flex",gap:4,flexWrap:"wrap",maxHeight:140,overflowY:"auto",padding:"4px 0" }}>
-        {filtered.length===0&&<span style={{fontSize:"0.75rem",color:"#6e7082",padding:8}}>{t("noResults")}</span>}
-        {filtered.map(x=>(
-          <button key={x.e+x.t} onClick={()=>onSelect(x.e)} style={{
-            fontSize:size>34?"1.2rem":"1rem",width:size,height:size,borderRadius:8,border:"none",cursor:"pointer",
-            background:selected===x.e?"rgba(212,32,53,0.25)":"rgba(255,255,255,0.04)",
-            outline:selected===x.e?"2px solid #d42035":"none",flexShrink:0,
-          }}>{x.e}</button>
-        ))}
-      </div>
+    <div style={{position:"relative",display:"inline-flex",gap:8,alignItems:"center"}}>
+      <button onClick={()=>{ setShowPopup(!showPopup); setTimeout(()=>inputRef.current?.focus(),50); }} style={{
+        fontSize:"1.6rem",width:52,height:52,borderRadius:14,border:"2px solid rgba(255,255,255,0.1)",
+        background:"rgba(255,255,255,0.06)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+        transition:"border-color 0.2s",
+      }}>{selected || "😀"}</button>
+      {showPopup && (
+        <div style={{position:"absolute",top:"100%",left:0,marginTop:6,zIndex:999,background:"#12121a",border:"1px solid rgba(255,255,255,0.1)",borderRadius:14,padding:"12px 16px",boxShadow:"0 12px 40px rgba(0,0,0,0.5)",minWidth:200}}>
+          <div style={{fontSize:"0.72rem",color:"#6e7082",marginBottom:8}}>Type or paste an emoji:</div>
+          <input ref={inputRef} value="" onChange={handleInputChange} placeholder="😀 Type emoji here..."
+            style={{...inputStyle,padding:"10px 14px",fontSize:"1.2rem",marginBottom:8}} />
+          <div style={{fontSize:"0.65rem",color:"#6e7082"}}>
+            💡 Tip: Press <strong style={{color:"#fff"}}>⌘ Cmd + Ctrl + Space</strong> on Mac or <strong style={{color:"#fff"}}>Win + .</strong> on Windows to open emoji keyboard
+          </div>
+          <button onClick={()=>setShowPopup(false)} style={{marginTop:8,fontSize:"0.75rem",color:"#6e7082",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Close</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -170,7 +158,7 @@ function CreateEventModal({ show, onClose, onSave }) {
             </div>
             <div>
               <div style={{fontSize:"0.75rem",color:"#6e7082",marginBottom:8,fontWeight:600}}>{t("eventEmoji")}</div>
-              <EmojiPicker selected={emoji} onSelect={setEmoji} size={42}/>
+              <EmojiPicker selected={emoji} onSelect={setEmoji}/>
             </div>
           </div>
           {errors&&<div style={{fontSize:"0.78rem",color:"#ff3348",textAlign:"center",marginBottom:12}}>⚠️ {errors}</div>}
@@ -197,7 +185,7 @@ function CreateEventModal({ show, onClose, onSave }) {
                 </div>
                 <div style={{marginBottom:8}}>
                   <div style={{fontSize:"0.68rem",color:"#6e7082",marginBottom:6}}>Emoji *</div>
-                  <EmojiPicker selected={p.icon} onSelect={e=>updatePrize(i,"icon",e)} size={34}/>
+                  <EmojiPicker selected={p.icon} onSelect={e=>updatePrize(i,"icon",e)}/>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <div style={{flex:1}}>

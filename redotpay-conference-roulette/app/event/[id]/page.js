@@ -81,12 +81,22 @@ function LEDRing({ spinning: isSpinning }) {
       if (isSpinning) rafRef.current = requestAnimationFrame(tick);
     }
     if(isSpinning) { cancelAnimationFrame(rafRef.current); tick(); }
-    else { cancelAnimationFrame(rafRef.current); dotEls.forEach(d => { d.style.opacity='0.15'; d.style.boxShadow='none'; }); }
+    else {
+      cancelAnimationFrame(rafRef.current);
+      // Idle state: alternating dim glow
+      dotEls.forEach((d,i) => {
+        const isRed = d.dataset.red === 'true';
+        d.style.opacity = (i % 3 === 0) ? '0.5' : '0.15';
+        d.style.boxShadow = (i % 3 === 0)
+          ? (isRed ? '0 0 4px rgba(212,32,53,0.3)' : '0 0 4px rgba(255,255,255,0.2)')
+          : 'none';
+      });
+    }
     return () => cancelAnimationFrame(rafRef.current);
   }, [isSpinning]);
 
   return (
-    <div ref={ringRef} style={{position:"absolute",inset:-11,borderRadius:"50%",zIndex:1}}>
+    <div ref={ringRef} style={{position:"absolute",inset:-11,borderRadius:"50%",zIndex:4,pointerEvents:"none"}}>
       {dots.map((d,i)=>(
         <div key={i} className="led" data-red={d.isRed} style={{
           position:"absolute", width:8, height:8, borderRadius:"50%",
