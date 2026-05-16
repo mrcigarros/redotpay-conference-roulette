@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=DM+Sans:wght@400;500;700&display=swap');
+
+:root {
+  --bg: #06060a;
+  --surface: #0e0e14;
+  --red: #d42035;
+  --red-light: #ff3348;
+  --white: #f2f2f4;
+  --muted: #6e7082;
+  --gold: #f5c842;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+}
+
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes popIn { from { transform: scale(0.7); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+@keyframes livePulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
