@@ -73,6 +73,8 @@ const PRIZE_TEMPLATES = [
   { icon:"👛", name:"RedotPay Wallet", label:"Wallet" },
   { icon:"🎒", name:"RedotPay Backpack", label:"Backpack" },
   { icon:"🎧", name:"RedotPay Headphones", label:"Headphones" },
+  { icon:"🛋️", name:"RedotPay Pillow", label:"Pillow" },
+  { icon:"🪪", name:"RedotPay Card Case", label:"Card Case" },
   { icon:"💰", name:"Cash Prize", label:"Cash" },
 ];
 
@@ -125,26 +127,30 @@ function CreateEventModal({ show, onClose, onSave }) {
 
   const updatePrize = (idx,field,value) => {
     const u=[...prizes];
-    u[idx]={...u[idx],[field]:field==="chance"?(parseFloat(value)||0):value};
-    if(field==="name"){const w=value.trim().split(" ");u[idx].label=w.length>1?w.slice(-1)[0]:value.trim();}
+    if(field==="chance") {
+      u[idx]={...u[idx],chance:Math.round(parseFloat(value)||0)};
+    } else {
+      u[idx]={...u[idx],[field]:value};
+      if(field==="name"){const w=value.trim().split(" ");u[idx].label=w.length>1?w.slice(-1)[0]:value.trim();}
+    }
     setPrizes(u);setErrors("");
   };
   const addPrize = () => setPrizes([...prizes,{id:"p"+Date.now(),name:"",label:"",icon:"",chance:0,color:prizes.length%2===0?"#c41a2e":"#1a1a30"}]);
   const removePrize = (idx) => {setPrizes(prizes.filter((_,i)=>i!==idx));};
   const distributeEvenly = () => {
-    const each=Math.floor((100/prizes.length)*10)/10;
-    setPrizes(prizes.map((p,i)=>({...p,chance:i===prizes.length-1?Math.round((100-each*(prizes.length-1))*10)/10:each})));
+    if(prizes.length===0) return;
+    const base=Math.floor(100/prizes.length);
+    const remainder=100-base*prizes.length;
+    setPrizes(prizes.map((p,i)=>({...p,chance:base+(i<remainder?1:0)})));
   };
 
   const validateAndSave = () => {
-    if(prizes.length<2){setErrors(t("minPrizes"));return;}
-    for(let i=0;i<prizes.length;i++){
-      if(!prizes[i].name.trim()){setErrors(`#${i+1} ${t("needsName")}`);return;}
-      if(!prizes[i].icon.trim()){setErrors(`#${i+1} ${t("needsEmoji")}`);return;}
-      if(prizes[i].chance<=0){setErrors(`#${i+1} ${t("needsChance")}`);return;}
-    }
-    if(Math.round(totalChance*10)/10!==100){setErrors(t("mustSum"));return;}
-    const finalPrizes=prizes.map(p=>({...p,label:p.label.trim()||p.name.trim().split(" ").pop()}));
+    // Auto-filter out prizes with 0% chance or empty names
+    const validPrizes = prizes.filter(p => p.chance > 0 && p.name.trim() && p.icon.trim());
+    if(validPrizes.length<2){setErrors("Need at least 2 prizes with chance > 0%");return;}
+    const total = validPrizes.reduce((s,p)=>s+p.chance,0);
+    if(total!==100){setErrors(`Chances must sum to 100% (currently ${total}%)`);return;}
+    const finalPrizes=validPrizes.map(p=>({...p,label:p.label.trim()||p.name.trim().split(" ").pop()}));
     onSave({name:name.trim(),location:location.trim(),emoji,prizes:finalPrizes,status:"active"});
     setName("");setLocation("");setEmoji("🎰");setStep(1);setErrors("");
     setPrizes([]);
@@ -211,11 +217,11 @@ function CreateEventModal({ show, onClose, onSave }) {
           </div>
 
           {/* Chance bar */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderRadius:12,marginBottom:12,background:Math.round(totalChance*10)/10===100?"rgba(34,197,94,0.1)":"rgba(255,51,72,0.1)",border:`1px solid ${Math.round(totalChance*10)/10===100?"rgba(34,197,94,0.25)":"rgba(255,51,72,0.25)"}`}}>
-            <span style={{fontSize:"0.8rem",fontWeight:700,color:Math.round(totalChance*10)/10===100?"#22c55e":"#ff3348"}}>Total: {totalChance.toFixed(1)}%</span>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderRadius:12,marginBottom:12,background:totalChance===100?"rgba(34,197,94,0.1)":"rgba(255,51,72,0.1)",border:`1px solid ${totalChance===100?"rgba(34,197,94,0.25)":"rgba(255,51,72,0.25)"}`}}>
+            <span style={{fontSize:"0.8rem",fontWeight:700,color:totalChance===100?"#22c55e":"#ff3348"}}>Total: {totalChance}%</span>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <button onClick={distributeEvenly} style={{fontSize:"0.68rem",fontWeight:700,color:"#6e7082",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"4px 10px",cursor:"pointer"}}>{t("splitEvenly")}</button>
-              <span style={{fontSize:"0.75rem",color:Math.round(totalChance*10)/10===100?"#22c55e":"#ff3348"}}>{Math.round(totalChance*10)/10===100?`✅`:`${(100-totalChance).toFixed(1)}% left`}</span>
+              <span style={{fontSize:"0.75rem",color:totalChance===100?"#22c55e":"#ff3348"}}>{totalChance===100?`✅`:`${100-totalChance}% left`}</span>
             </div>
           </div>
 
@@ -225,18 +231,21 @@ function CreateEventModal({ show, onClose, onSave }) {
               👆 Tap items above to add prizes
             </div>
           )}
-          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,maxHeight:240,overflowY:"auto"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,maxHeight:280,overflowY:"auto"}}>
             {prizes.map((p,i)=>(
-              <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 12px"}}>
-                <span style={{fontSize:"1.3rem",width:32,textAlign:"center"}}>{p.icon}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <input value={p.name} onChange={e=>updatePrize(i,"name",e.target.value)} style={{...inputStyle,padding:"6px 10px",fontSize:"0.82rem",background:"transparent",border:"none",fontWeight:700}} />
+              <div key={p.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{fontSize:"1.2rem",width:28,textAlign:"center"}}>{p.icon}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <input value={p.name} onChange={e=>updatePrize(i,"name",e.target.value)} style={{...inputStyle,padding:"4px 8px",fontSize:"0.78rem",background:"transparent",border:"none",fontWeight:700,width:"100%"}} />
+                  </div>
+                  <span style={{fontSize:"0.82rem",fontWeight:800,color:p.chance>0?"#fff":"#6e7082",minWidth:36,textAlign:"right"}}>{p.chance}%</span>
+                  <button onClick={()=>removePrize(i)} style={{background:"none",border:"none",color:"#ff3348",cursor:"pointer",fontSize:"0.9rem",padding:"2px 4px",opacity:0.5}}>✕</button>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
-                  <input type="number" min="0" max="100" step="0.1" value={p.chance||""} onChange={e=>updatePrize(i,"chance",e.target.value)} style={{...inputStyle,width:56,padding:"6px 4px",fontSize:"0.82rem",textAlign:"center"}}/>
-                  <span style={{fontSize:"0.75rem",color:"#6e7082"}}>%</span>
+                <div style={{display:"flex",alignItems:"center",gap:8,paddingLeft:36}}>
+                  <input type="range" min="0" max="100" step="1" value={p.chance} onChange={e=>updatePrize(i,"chance",e.target.value)}
+                    style={{flex:1,height:6,appearance:"none",WebkitAppearance:"none",background:`linear-gradient(to right, #d42035 ${p.chance}%, rgba(255,255,255,0.08) ${p.chance}%)`,borderRadius:3,outline:"none",cursor:"pointer"}} />
                 </div>
-                <button onClick={()=>removePrize(i)} style={{background:"none",border:"none",color:"#ff3348",cursor:"pointer",fontSize:"1rem",padding:"4px",opacity:0.6}}>✕</button>
               </div>
             ))}
           </div>
@@ -244,7 +253,7 @@ function CreateEventModal({ show, onClose, onSave }) {
           {errors&&<div style={{fontSize:"0.78rem",color:"#ff3348",textAlign:"center",marginBottom:12}}>⚠️ {errors}</div>}
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>{setStep(1);setErrors("");}} style={{...btnStyle("transparent",true),flex:1,padding:"14px 0"}}>{t("back")}</button>
-            <button onClick={validateAndSave} style={{...btnStyle(Math.round(totalChance*10)/10===100?"#d42035":"#333"),flex:2,padding:"14px 0",opacity:Math.round(totalChance*10)/10===100?1:0.5}}>{t("createEvent")} 🎰</button>
+            <button onClick={validateAndSave} style={{...btnStyle(totalChance===100?"#d42035":"#333"),flex:2,padding:"14px 0",opacity:totalChance===100?1:0.5}}>{t("createEvent")} 🎰</button>
           </div>
         </div>
       )}
