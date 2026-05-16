@@ -26,18 +26,28 @@ const inputStyle = {
 
 // ============ FLAG PICKER (Step 1 - Events) ============
 const FLAGS = [
-  "🇧🇷","🇺🇸","🇬🇧","🇨🇳","🇯🇵","🇰🇷","🇮🇳","🇩🇪","🇫🇷","🇪🇸","🇮🇹","🇵🇹","🇳🇱","🇦🇺","🇨🇦","🇲🇽","🇦🇷","🇨🇴",
-  "🇹🇷","🇦🇪","🇸🇬","🇭🇰","🇹🇼","🇹🇭","🇻🇳","🇵🇭","🇮🇩","🇲🇾","🇳🇬","🇿🇦","🇰🇪","🇪🇬","🇸🇦","🇶🇦","🇵🇰","🇧🇩",
-  "🇵🇱","🇸🇪","🇳🇴","🇩🇰","🇫🇮","🇨🇿","🇷🇴","🇭🇺","🇦🇹","🇨🇭","🇧🇪","🇮🇪","🇮🇱","🇺🇦","🇷🇺","🇵🇪","🇨🇱","🇪🇨",
-  "🌎","🌍","🌏","🎰","🎲","🚀","⚡","💎","🔗","🏆",
+  // Americas
+  "🇧🇷","🇺🇸","🇨🇦","🇲🇽","🇦🇷","🇨🇴","🇨🇱","🇵🇪","🇪🇨","🇻🇪","🇺🇾","🇵🇾","🇧🇴","🇨🇷","🇵🇦","🇬🇹","🇭🇳","🇸🇻","🇳🇮","🇨🇺","🇩🇴","🇵🇷","🇯🇲","🇹🇹","🇭🇹","🇧🇸","🇧🇧","🇬🇾","🇸🇷",
+  // Europe
+  "🇬🇧","🇩🇪","🇫🇷","🇪🇸","🇮🇹","🇵🇹","🇳🇱","🇧🇪","🇦🇹","🇨🇭","🇸🇪","🇳🇴","🇩🇰","🇫🇮","🇮🇪","🇵🇱","🇨🇿","🇷🇴","🇭🇺","🇬🇷","🇧🇬","🇭🇷","🇸🇰","🇸🇮","🇱🇹","🇱🇻","🇪🇪","🇺🇦","🇷🇺","🇧🇾","🇲🇩","🇷🇸","🇧🇦","🇲🇪","🇲🇰","🇦🇱","🇽🇰","🇮🇸","🇱🇺","🇲🇹","🇨🇾","🇲🇨","🇱🇮","🇦🇩","🇸🇲",
+  // Asia
+  "🇨🇳","🇯🇵","🇰🇷","🇮🇳","🇮🇩","🇹🇭","🇻🇳","🇵🇭","🇲🇾","🇸🇬","🇭🇰","🇹🇼","🇲🇴","🇧🇩","🇵🇰","🇱🇰","🇳🇵","🇲🇲","🇰🇭","🇱🇦","🇲🇳","🇰🇿","🇺🇿","🇹🇯","🇰🇬","🇹🇲","🇦🇿","🇬🇪","🇦🇲","🇦🇫","🇮🇷","🇮🇶","🇸🇾","🇯🇴","🇱🇧","🇮🇱","🇵🇸","🇰🇵","🇧🇳","🇹🇱",
+  // Middle East
+  "🇦🇪","🇸🇦","🇶🇦","🇰🇼","🇧🇭","🇴🇲","🇾🇪","🇹🇷",
+  // Africa
+  "🇳🇬","🇿🇦","🇰🇪","🇪🇬","🇲🇦","🇬🇭","🇪🇹","🇹🇿","🇺🇬","🇨🇲","🇸🇳","🇨🇩","🇦🇴","🇲🇿","🇿🇼","🇧🇼","🇳🇦","🇷🇼","🇹🇳","🇩🇿","🇱🇾","🇸🇩","🇸🇸","🇲🇺","🇲🇬","🇨🇮",
+  // Oceania
+  "🇦🇺","🇳🇿","🇫🇯","🇵🇬","🇼🇸","🇹🇴","🇻🇺","🇸🇧","🇰🇮","🇹🇻","🇳🇷","🇵🇼","🇲🇭","🇫🇲",
+  // Global / Other
+  "🌎","🌍","🌏","🌐","🎰","🎲","🚀","⚡","💎","🔗","🏆","🪙","🔥","⭐",
 ];
 
 function FlagPicker({ selected, onSelect }) {
   return (
-    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-      {FLAGS.map(f=>(
-        <button key={f} onClick={()=>onSelect(f)} style={{
-          fontSize:"1.3rem",width:38,height:38,borderRadius:10,border:"none",cursor:"pointer",
+    <div style={{display:"flex",gap:4,flexWrap:"wrap",maxHeight:180,overflowY:"auto",padding:"2px 0"}}>
+      {FLAGS.map((f,i)=>(
+        <button key={f+i} onClick={()=>onSelect(f)} style={{
+          fontSize:"1.3rem",width:36,height:36,borderRadius:10,border:"none",cursor:"pointer",
           background:selected===f?"rgba(212,32,53,0.25)":"rgba(255,255,255,0.04)",
           outline:selected===f?"2px solid #d42035":"none",display:"flex",alignItems:"center",justifyContent:"center",
         }}>{f}</button>
@@ -48,21 +58,21 @@ function FlagPicker({ selected, onSelect }) {
 
 // ============ PRIZE TEMPLATES (Step 2 - Prizes) ============
 const PRIZE_TEMPLATES = [
-  { icon:"👕", name:"T-Shirt", label:"T-Shirt" },
-  { icon:"🕶️", name:"Sunglasses", label:"Shades" },
-  { icon:"✨", name:"Stickers", label:"Stickers" },
-  { icon:"💳", name:"RedotPay Card", label:"Card" },
-  { icon:"🪪", name:"Virtual Card", label:"V-Card" },
-  { icon:"📱", name:"Phone Case", label:"Case" },
-  { icon:"🎫", name:"Event Ticket", label:"Ticket" },
-  { icon:"🧢", name:"Cap", label:"Cap" },
-  { icon:"🧶", name:"Beanie", label:"Beanie" },
-  { icon:"👟", name:"Shoes", label:"Shoes" },
-  { icon:"🖊️", name:"Pen", label:"Pen" },
-  { icon:"📓", name:"Notepad", label:"Notepad" },
-  { icon:"👛", name:"Wallet", label:"Wallet" },
-  { icon:"🎒", name:"Backpack", label:"Backpack" },
-  { icon:"🎧", name:"Headphones", label:"Headphones" },
+  { icon:"👕", name:"Exclusive T-Shirt", label:"T-Shirt" },
+  { icon:"🕶️", name:"RedotPay Sunglass", label:"Sunglass" },
+  { icon:"✨", name:"RedotPay Stickers", label:"Stickers" },
+  { icon:"🪪", name:"RedotPay Virtual Card", label:"V-Card" },
+  { icon:"💳", name:"RedotPay Physical Card", label:"Card" },
+  { icon:"📱", name:"RedotPay Phone Case", label:"Case" },
+  { icon:"🎫", name:"RedotPay Side Event Ticket", label:"Ticket" },
+  { icon:"🧢", name:"RedotPay Cap", label:"Cap" },
+  { icon:"🧶", name:"RedotPay Hat", label:"Hat" },
+  { icon:"🧦", name:"RedotPay Socks", label:"Socks" },
+  { icon:"🖊️", name:"RedotPay Pen", label:"Pen" },
+  { icon:"📓", name:"RedotPay Notepad", label:"Notepad" },
+  { icon:"👛", name:"RedotPay Wallet", label:"Wallet" },
+  { icon:"🎒", name:"RedotPay Backpack", label:"Backpack" },
+  { icon:"🎧", name:"RedotPay Headphones", label:"Headphones" },
   { icon:"💰", name:"Cash Prize", label:"Cash" },
 ];
 
