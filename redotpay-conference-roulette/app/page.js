@@ -151,7 +151,19 @@ function CreateEventModal({ show, onClose, onSave }) {
     if(validPrizes.length<2){setErrors("Need at least 2 prizes with chance > 0%");return;}
     const total = validPrizes.reduce((s,p)=>s+p.chance,0);
     if(total!==100){setErrors(`Chances must sum to 100% (currently ${total}%)`);return;}
-    const finalPrizes=validPrizes.map(p=>({...p,label:p.label.trim()||p.name.trim().split(" ").pop()}));
+    // Reassign colors by position so no adjacent slices share a color (including wrap-around)
+    const palette = ["#c41a2e","#1a1a30","#e8e8ec"];
+    const n = validPrizes.length;
+    const finalPrizes = validPrizes.map((p,i) => {
+      let colorIdx = i % palette.length;
+      // If only 2 prizes, use red and dark (skip white to avoid wrap conflict)
+      if (n === 2) colorIdx = i;
+      // For 3+ prizes, check wrap-around: last slice can't match first
+      if (n > 2 && i === n - 1 && palette[colorIdx] === palette[0 % palette.length]) {
+        colorIdx = (colorIdx + 1) % palette.length;
+      }
+      return { ...p, color: palette[colorIdx], label: p.label.trim() || p.name.trim().split(" ").pop() };
+    });
     onSave({name:name.trim(),location:location.trim(),emoji,prizes:finalPrizes,status:"active"});
     setName("");setLocation("");setEmoji("🎰");setStep(1);setErrors("");
     setPrizes([]);
