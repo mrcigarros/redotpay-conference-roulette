@@ -24,9 +24,47 @@ const inputStyle = {
   borderRadius: 14, padding: "14px 18px", outline: "none", width: "100%",
 };
 
-// Emoji picker uses native OS emoji keyboard
+// ============ FLAG PICKER (Step 1 - Events) ============
+const FLAGS = [
+  "🇧🇷","🇺🇸","🇬🇧","🇨🇳","🇯🇵","🇰🇷","🇮🇳","🇩🇪","🇫🇷","🇪🇸","🇮🇹","🇵🇹","🇳🇱","🇦🇺","🇨🇦","🇲🇽","🇦🇷","🇨🇴",
+  "🇹🇷","🇦🇪","🇸🇬","🇭🇰","🇹🇼","🇹🇭","🇻🇳","🇵🇭","🇮🇩","🇲🇾","🇳🇬","🇿🇦","🇰🇪","🇪🇬","🇸🇦","🇶🇦","🇵🇰","🇧🇩",
+  "🇵🇱","🇸🇪","🇳🇴","🇩🇰","🇫🇮","🇨🇿","🇷🇴","🇭🇺","🇦🇹","🇨🇭","🇧🇪","🇮🇪","🇮🇱","🇺🇦","🇷🇺","🇵🇪","🇨🇱","🇪🇨",
+  "🌎","🌍","🌏","🎰","🎲","🚀","⚡","💎","🔗","🏆",
+];
 
-import EmojiPicker from "@/components/EmojiPicker";
+function FlagPicker({ selected, onSelect }) {
+  return (
+    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+      {FLAGS.map(f=>(
+        <button key={f} onClick={()=>onSelect(f)} style={{
+          fontSize:"1.3rem",width:38,height:38,borderRadius:10,border:"none",cursor:"pointer",
+          background:selected===f?"rgba(212,32,53,0.25)":"rgba(255,255,255,0.04)",
+          outline:selected===f?"2px solid #d42035":"none",display:"flex",alignItems:"center",justifyContent:"center",
+        }}>{f}</button>
+      ))}
+    </div>
+  );
+}
+
+// ============ PRIZE TEMPLATES (Step 2 - Prizes) ============
+const PRIZE_TEMPLATES = [
+  { icon:"👕", name:"T-Shirt", label:"T-Shirt" },
+  { icon:"🕶️", name:"Sunglasses", label:"Shades" },
+  { icon:"✨", name:"Stickers", label:"Stickers" },
+  { icon:"💳", name:"RedotPay Card", label:"Card" },
+  { icon:"🪪", name:"Virtual Card", label:"V-Card" },
+  { icon:"📱", name:"Phone Case", label:"Case" },
+  { icon:"🎫", name:"Event Ticket", label:"Ticket" },
+  { icon:"🧢", name:"Cap", label:"Cap" },
+  { icon:"🧶", name:"Beanie", label:"Beanie" },
+  { icon:"👟", name:"Shoes", label:"Shoes" },
+  { icon:"🖊️", name:"Pen", label:"Pen" },
+  { icon:"📓", name:"Notepad", label:"Notepad" },
+  { icon:"👛", name:"Wallet", label:"Wallet" },
+  { icon:"🎒", name:"Backpack", label:"Backpack" },
+  { icon:"🎧", name:"Headphones", label:"Headphones" },
+  { icon:"💰", name:"Cash Prize", label:"Cash" },
+];
 
 function Modal({ show, onClose, children }) {
   if (!show) return null;
@@ -71,10 +109,7 @@ function CreateEventModal({ show, onClose, onSave }) {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [emoji, setEmoji] = useState("🎰");
-  const [prizes, setPrizes] = useState([
-    { id:"p1",name:"",label:"",icon:"",chance:0,color:"#c41a2e" },
-    { id:"p2",name:"",label:"",icon:"",chance:0,color:"#1a1a30" },
-  ]);
+  const [prizes, setPrizes] = useState([]);
   const [errors, setErrors] = useState("");
   const totalChance = prizes.reduce((s,p)=>s+(p.chance||0),0);
 
@@ -85,13 +120,14 @@ function CreateEventModal({ show, onClose, onSave }) {
     setPrizes(u);setErrors("");
   };
   const addPrize = () => setPrizes([...prizes,{id:"p"+Date.now(),name:"",label:"",icon:"",chance:0,color:prizes.length%2===0?"#c41a2e":"#1a1a30"}]);
-  const removePrize = (idx) => {if(prizes.length<=2){setErrors(t("minPrizes"));return;}setPrizes(prizes.filter((_,i)=>i!==idx));};
+  const removePrize = (idx) => {setPrizes(prizes.filter((_,i)=>i!==idx));};
   const distributeEvenly = () => {
     const each=Math.floor((100/prizes.length)*10)/10;
     setPrizes(prizes.map((p,i)=>({...p,chance:i===prizes.length-1?Math.round((100-each*(prizes.length-1))*10)/10:each})));
   };
 
   const validateAndSave = () => {
+    if(prizes.length<2){setErrors(t("minPrizes"));return;}
     for(let i=0;i<prizes.length;i++){
       if(!prizes[i].name.trim()){setErrors(`#${i+1} ${t("needsName")}`);return;}
       if(!prizes[i].icon.trim()){setErrors(`#${i+1} ${t("needsEmoji")}`);return;}
@@ -101,7 +137,7 @@ function CreateEventModal({ show, onClose, onSave }) {
     const finalPrizes=prizes.map(p=>({...p,label:p.label.trim()||p.name.trim().split(" ").pop()}));
     onSave({name:name.trim(),location:location.trim(),emoji,prizes:finalPrizes,status:"active"});
     setName("");setLocation("");setEmoji("🎰");setStep(1);setErrors("");
-    setPrizes([{id:"p1",name:"",label:"",icon:"",chance:0,color:"#c41a2e"},{id:"p2",name:"",label:"",icon:"",chance:0,color:"#1a1a30"}]);
+    setPrizes([]);
   };
 
   return (
@@ -123,8 +159,8 @@ function CreateEventModal({ show, onClose, onSave }) {
               <input value={location} onChange={e=>setLocation(e.target.value)} placeholder="e.g. Netherlands" style={inputStyle}/>
             </div>
             <div>
-              <div style={{fontSize:"0.75rem",color:"#6e7082",marginBottom:8,fontWeight:600}}>{t("eventEmoji")}</div>
-              <EmojiPicker selected={emoji} onSelect={setEmoji}/>
+              <div style={{fontSize:"0.75rem",color:"#6e7082",marginBottom:8,fontWeight:600}}>Event Flag / Icon</div>
+              <FlagPicker selected={emoji} onSelect={setEmoji}/>
             </div>
           </div>
           {errors&&<div style={{fontSize:"0.78rem",color:"#ff3348",textAlign:"center",marginBottom:12}}>⚠️ {errors}</div>}
@@ -133,50 +169,72 @@ function CreateEventModal({ show, onClose, onSave }) {
       )}
       {step===2&&(
         <div>
-          <div style={{textAlign:"center",marginBottom:20}}>
-            <h2 style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.3rem",fontWeight:800}}>🎯 {t("setPrizes")}</h2>
-            <div style={{fontSize:"0.75rem",color:"#6e7082",marginTop:4}}>{t("step2")}</div>
+          <div style={{textAlign:"center",marginBottom:16}}>
+            <h2 style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.2rem",fontWeight:800}}>🎯 {t("setPrizes")}</h2>
+            <div style={{fontSize:"0.72rem",color:"#6e7082",marginTop:4}}>Tap items below to add prizes, then set the chance %</div>
           </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderRadius:12,marginBottom:16,background:Math.round(totalChance*10)/10===100?"rgba(34,197,94,0.1)":"rgba(255,51,72,0.1)",border:`1px solid ${Math.round(totalChance*10)/10===100?"rgba(34,197,94,0.25)":"rgba(255,51,72,0.25)"}`}}>
+
+          {/* Quick-add prize templates */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:"0.68rem",color:"#6e7082",fontWeight:600,marginBottom:8,letterSpacing:0.5}}>TAP TO ADD ↓</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {PRIZE_TEMPLATES.map(tpl=>{
+                const alreadyAdded = prizes.some(p=>p.icon===tpl.icon && p.name===tpl.name);
+                return (
+                  <button key={tpl.icon+tpl.name} disabled={alreadyAdded} onClick={()=>{
+                    setPrizes([...prizes,{id:"p"+Date.now(),name:tpl.name,label:tpl.label,icon:tpl.icon,chance:0,color:prizes.length%2===0?"#c41a2e":"#1a1a30"}]);
+                    setErrors("");
+                  }} style={{
+                    display:"flex",alignItems:"center",gap:6,padding:"8px 12px",borderRadius:10,
+                    background:alreadyAdded?"rgba(34,197,94,0.1)":"rgba(255,255,255,0.04)",
+                    border:`1px solid ${alreadyAdded?"rgba(34,197,94,0.2)":"rgba(255,255,255,0.08)"}`,
+                    color:alreadyAdded?"#22c55e":"#f2f2f4",cursor:alreadyAdded?"default":"pointer",
+                    fontSize:"0.78rem",fontWeight:600,opacity:alreadyAdded?0.6:1,transition:"all 0.15s",
+                  }}>
+                    <span style={{fontSize:"1rem"}}>{tpl.icon}</span>
+                    {tpl.name}
+                    {alreadyAdded&&<span style={{fontSize:"0.65rem"}}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Chance bar */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderRadius:12,marginBottom:12,background:Math.round(totalChance*10)/10===100?"rgba(34,197,94,0.1)":"rgba(255,51,72,0.1)",border:`1px solid ${Math.round(totalChance*10)/10===100?"rgba(34,197,94,0.25)":"rgba(255,51,72,0.25)"}`}}>
             <span style={{fontSize:"0.8rem",fontWeight:700,color:Math.round(totalChance*10)/10===100?"#22c55e":"#ff3348"}}>Total: {totalChance.toFixed(1)}%</span>
-            <span style={{fontSize:"0.75rem",color:Math.round(totalChance*10)/10===100?"#22c55e":"#ff3348"}}>{Math.round(totalChance*10)/10===100?`✅ ${t("ready")}`:`${(100-totalChance).toFixed(1)}% ${t("remaining")}`}</span>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <button onClick={distributeEvenly} style={{fontSize:"0.68rem",fontWeight:700,color:"#6e7082",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"4px 10px",cursor:"pointer"}}>{t("splitEvenly")}</button>
+              <span style={{fontSize:"0.75rem",color:Math.round(totalChance*10)/10===100?"#22c55e":"#ff3348"}}>{Math.round(totalChance*10)/10===100?`✅`:`${(100-totalChance).toFixed(1)}% left`}</span>
+            </div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16,maxHeight:350,overflowY:"auto"}}>
+
+          {/* Prize list */}
+          {prizes.length===0&&(
+            <div style={{textAlign:"center",padding:"28px 0",color:"#6e7082",fontSize:"0.82rem",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:14,marginBottom:12}}>
+              👆 Tap items above to add prizes
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16,maxHeight:240,overflowY:"auto"}}>
             {prizes.map((p,i)=>(
-              <div key={p.id} style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${(!p.name.trim()||!p.icon.trim())?"rgba(255,51,72,0.2)":"rgba(255,255,255,0.06)"}`,borderRadius:14,padding:14}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
-                  <span style={{fontSize:"0.7rem",color:"#6e7082",fontWeight:700}}>#{i+1}</span>
-                  <span style={{flex:1,fontFamily:"'Plus Jakarta Sans'",fontSize:"0.85rem",fontWeight:700,color:p.name?"#fff":"#6e7082"}}>{p.icon} {p.name||t("untitled")}</span>
-                  <button onClick={()=>removePrize(i)} style={{background:"rgba(212,32,53,0.1)",border:"1px solid rgba(212,32,53,0.2)",borderRadius:8,padding:"4px 10px",color:"#ff3348",cursor:"pointer",fontSize:"0.75rem"}}>✕</button>
+              <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"10px 12px"}}>
+                <span style={{fontSize:"1.3rem",width:32,textAlign:"center"}}>{p.icon}</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <input value={p.name} onChange={e=>updatePrize(i,"name",e.target.value)} style={{...inputStyle,padding:"6px 10px",fontSize:"0.82rem",background:"transparent",border:"none",fontWeight:700}} />
                 </div>
-                <div style={{marginBottom:8}}>
-                  <div style={{fontSize:"0.68rem",color:"#6e7082",marginBottom:6}}>Emoji *</div>
-                  <EmojiPicker selected={p.icon} onSelect={e=>updatePrize(i,"icon",e)}/>
+                <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                  <input type="number" min="0" max="100" step="0.1" value={p.chance||""} onChange={e=>updatePrize(i,"chance",e.target.value)} style={{...inputStyle,width:56,padding:"6px 4px",fontSize:"0.82rem",textAlign:"center"}}/>
+                  <span style={{fontSize:"0.75rem",color:"#6e7082"}}>%</span>
                 </div>
-                <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:"0.68rem",color:"#6e7082",marginBottom:4}}>{t("prizeName")} *</div>
-                    <input value={p.name} onChange={e=>updatePrize(i,"name",e.target.value)} placeholder="e.g. Óculos" style={{...inputStyle,padding:"10px 14px",fontSize:"0.85rem"}}/>
-                  </div>
-                  <div style={{width:90}}>
-                    <div style={{fontSize:"0.68rem",color:"#6e7082",marginBottom:4}}>{t("chance")} *</div>
-                    <div style={{display:"flex",alignItems:"center",gap:4}}>
-                      <input type="number" min="0" max="100" step="0.1" value={p.chance||""} onChange={e=>updatePrize(i,"chance",e.target.value)} style={{...inputStyle,padding:"10px 8px",fontSize:"0.85rem",textAlign:"center",width:"100%"}}/>
-                      <span style={{fontSize:"0.8rem",color:"#6e7082"}}>%</span>
-                    </div>
-                  </div>
-                </div>
+                <button onClick={()=>removePrize(i)} style={{background:"none",border:"none",color:"#ff3348",cursor:"pointer",fontSize:"1rem",padding:"4px",opacity:0.6}}>✕</button>
               </div>
             ))}
           </div>
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            <button onClick={addPrize} style={{...btnStyle("transparent",true),flex:1,padding:"12px 0",fontSize:"0.8rem"}}>{t("addPrize")}</button>
-            <button onClick={distributeEvenly} style={{...btnStyle("transparent",true),flex:1,padding:"12px 0",fontSize:"0.8rem"}}>{t("splitEvenly")}</button>
-          </div>
+
           {errors&&<div style={{fontSize:"0.78rem",color:"#ff3348",textAlign:"center",marginBottom:12}}>⚠️ {errors}</div>}
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>{setStep(1);setErrors("");}} style={{...btnStyle("transparent",true),flex:1,padding:"16px 0"}}>{t("back")}</button>
-            <button onClick={validateAndSave} style={{...btnStyle(Math.round(totalChance*10)/10===100?"#d42035":"#333"),flex:2,padding:"16px 0",opacity:Math.round(totalChance*10)/10===100?1:0.5}}>{t("createEvent")} 🎰</button>
+            <button onClick={()=>{setStep(1);setErrors("");}} style={{...btnStyle("transparent",true),flex:1,padding:"14px 0"}}>{t("back")}</button>
+            <button onClick={validateAndSave} style={{...btnStyle(Math.round(totalChance*10)/10===100?"#d42035":"#333"),flex:2,padding:"14px 0",opacity:Math.round(totalChance*10)/10===100?1:0.5}}>{t("createEvent")} 🎰</button>
           </div>
         </div>
       )}
