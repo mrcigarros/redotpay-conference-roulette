@@ -26,41 +26,7 @@ const inputStyle = {
 
 // Emoji picker uses native OS emoji keyboard
 
-function EmojiPicker({ selected, onSelect }) {
-  const [showPopup, setShowPopup] = useState(false);
-  const inputRef = useRef(null);
-
-  const handleInputChange = (e) => {
-    const val = e.target.value;
-    // Extract the last emoji character entered
-    const emojiMatch = val.match(/(\p{Emoji_Presentation}|\p{Extended_Pictographic})/gu);
-    if (emojiMatch && emojiMatch.length > 0) {
-      onSelect(emojiMatch[emojiMatch.length - 1]);
-      setShowPopup(false);
-    }
-  };
-
-  return (
-    <div style={{position:"relative",display:"inline-flex",gap:8,alignItems:"center"}}>
-      <button onClick={()=>{ setShowPopup(!showPopup); setTimeout(()=>inputRef.current?.focus(),50); }} style={{
-        fontSize:"1.6rem",width:52,height:52,borderRadius:14,border:"2px solid rgba(255,255,255,0.1)",
-        background:"rgba(255,255,255,0.06)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-        transition:"border-color 0.2s",
-      }}>{selected || "😀"}</button>
-      {showPopup && (
-        <div style={{position:"absolute",top:"100%",left:0,marginTop:6,zIndex:999,background:"#12121a",border:"1px solid rgba(255,255,255,0.1)",borderRadius:14,padding:"12px 16px",boxShadow:"0 12px 40px rgba(0,0,0,0.5)",minWidth:200}}>
-          <div style={{fontSize:"0.72rem",color:"#6e7082",marginBottom:8}}>Type or paste an emoji:</div>
-          <input ref={inputRef} value="" onChange={handleInputChange} placeholder="😀 Type emoji here..."
-            style={{...inputStyle,padding:"10px 14px",fontSize:"1.2rem",marginBottom:8}} />
-          <div style={{fontSize:"0.65rem",color:"#6e7082"}}>
-            💡 Tip: Press <strong style={{color:"#fff"}}>⌘ Cmd + Ctrl + Space</strong> on Mac or <strong style={{color:"#fff"}}>Win + .</strong> on Windows to open emoji keyboard
-          </div>
-          <button onClick={()=>setShowPopup(false)} style={{marginTop:8,fontSize:"0.75rem",color:"#6e7082",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Close</button>
-        </div>
-      )}
-    </div>
-  );
-}
+import EmojiPicker from "@/components/EmojiPicker";
 
 function Modal({ show, onClose, children }) {
   if (!show) return null;
