@@ -1,8 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase, getPlays, checkUidPlayed, recordPlay, updateEvent, getEvents } from "@/lib/supabase";
+import { supabase, getPlays, checkUidPlayed, recordPlay, updateEvent } from "@/lib/supabase";
 import { useI18n, LanguageSelector } from "@/lib/i18n";
+
+const LOGO = "/logo.png";
 
 const btnStyle = (bg, outline) => ({
   fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "0.85rem", fontWeight: 700,
@@ -10,17 +12,12 @@ const btnStyle = (bg, outline) => ({
   background: outline ? "transparent" : bg, border: outline ? "1px solid rgba(255,255,255,0.15)" : "none",
   padding: "14px 32px", borderRadius: 100, cursor: "pointer",
 });
-const inputStyle = {
-  fontFamily: "'DM Sans',sans-serif", fontSize: "1rem", fontWeight: 500, color: "#f2f2f4",
-  background: "rgba(255,255,255,0.06)", border: "2px solid rgba(255,255,255,0.1)",
-  borderRadius: 14, padding: "14px 18px", outline: "none", width: "100%",
-};
 
 function Modal({ show, onClose, children }) {
   if (!show) return null;
   return (
-    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(14px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(160deg,#161622,#0e0e14)",border:"1px solid rgba(212,32,53,0.25)",borderRadius:28,padding:"40px 32px",maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto" }}>{children}</div>
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(14px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeIn 0.3s ease" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"linear-gradient(160deg,#161622,#0e0e14)",border:"1px solid rgba(212,32,53,0.25)",borderRadius:28,padding:"40px 32px",maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto",animation:"popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)" }}>{children}</div>
     </div>
   );
 }
@@ -40,12 +37,71 @@ function Numpad({ value, onChange }) {
   );
 }
 
-function lighten(hex, amt) {
-  const num = parseInt(hex.replace("#",""),16);
-  const r=Math.min(255,(num>>16)+amt), g=Math.min(255,((num>>8)&0xff)+amt), b=Math.min(255,(num&0xff)+amt);
+function adjustColor(hex, amt) {
+  let c = (hex||"#c41a2e").replace("#","");
+  if(c.length===3) c=c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  const num=parseInt(c,16);
+  const r=Math.max(0,Math.min(255,(num>>16)+amt));
+  const g=Math.max(0,Math.min(255,((num>>8)&0xff)+amt));
+  const b=Math.max(0,Math.min(255,(num&0xff)+amt));
   return `rgb(${r},${g},${b})`;
 }
 
+// ============ LED RING COMPONENT ============
+function LEDRing({ spinning: isSpinning, containerSize }) {
+  const ringRef = useRef(null);
+  const rafRef = useRef(null);
+  const [dots, setDots] = useState([]);
+
+  useEffect(() => {
+    const size = containerSize + 22;
+    const cx = size/2, cy = size/2, r = cx - 4;
+    const count = 36;
+    const arr = [];
+    for(let i=0;i<count;i++){
+      const a = (i/count)*2*Math.PI - Math.PI/2;
+      arr.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, isRed: i%2===0 });
+    }
+    setDots(arr);
+  }, [containerSize]);
+
+  useEffect(() => {
+    if (!ringRef.current) return;
+    const dotEls = ringRef.current.querySelectorAll('.led');
+    if (!dotEls.length) return;
+    let off = 0;
+    const speed = isSpinning ? 0.012 : 0;
+    function tick() {
+      off += speed;
+      dotEls.forEach((d,i) => {
+        const phase = (i/dotEls.length + off) % 1;
+        d.style.opacity = isSpinning ? (phase < 0.35 ? '1' : '0.12') : '0.15';
+        d.style.boxShadow = isSpinning && phase < 0.35
+          ? (d.dataset.red==='true' ? '0 0 6px #ff3348, 0 0 14px rgba(212,32,53,0.4)' : '0 0 6px #fff, 0 0 14px rgba(255,255,255,0.3)')
+          : 'none';
+      });
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    if(isSpinning) { cancelAnimationFrame(rafRef.current); tick(); }
+    else { cancelAnimationFrame(rafRef.current); dotEls.forEach(d => { d.style.opacity='0.15'; d.style.boxShadow='none'; }); }
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [isSpinning, dots]);
+
+  return (
+    <div ref={ringRef} style={{position:"absolute",inset:-11,borderRadius:"50%",zIndex:1}}>
+      {dots.map((d,i)=>(
+        <div key={i} className="led" data-red={d.isRed} style={{
+          position:"absolute", width:8, height:8, borderRadius:"50%",
+          background: d.isRed ? "#ff3348" : "#fff",
+          left: d.x, top: d.y, transform:"translate(-50%,-50%)",
+          opacity: 0.15, transition:"opacity 0.08s",
+        }}/>
+      ))}
+    </div>
+  );
+}
+
+// ============ MAIN EVENT PAGE ============
 export default function EventPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -60,16 +116,22 @@ export default function EventPage() {
   const [showAlready, setShowAlready] = useState(null);
   const [uid, setUid] = useState("");
   const [uidError, setUidError] = useState("");
+  const [wheelReady, setWheelReady] = useState(false);
   const currentUidRef = useRef("");
   const canvasRef = useRef(null);
   const angleRef = useRef(0);
   const sizeRef = useRef(0);
+  const stageRef = useRef(null);
 
   // Load event + plays
   const loadData = useCallback(async () => {
     try {
       const { data: ev } = await supabase.from("events").select("*").eq("id", id).single();
-      if (ev) { setEvent(ev); const p = await getPlays(id); setPlays(p); }
+      if (ev) {
+        setEvent(ev);
+        const p = await getPlays(id);
+        setPlays(p);
+      }
     } catch(e) { console.error(e); }
     setLoading(false);
   }, [id]);
@@ -89,68 +151,106 @@ export default function EventPage() {
   const N = prizes.length;
   const SLICE = N > 0 ? (2 * Math.PI) / N : 0;
 
-  // Draw wheel
+  // ============ DRAW WHEEL ============
   const drawWheel = useCallback((rotation) => {
     const canvas = canvasRef.current;
-    if (!canvas || N === 0) return;
+    if (!canvas || N === 0 || !sizeRef.current) return;
     const ctx = canvas.getContext("2d");
-    // Ensure canvas is sized
-    if (!sizeRef.current) {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      const W = Math.min(parent.offsetWidth, parent.offsetHeight) || 400;
+    const W = sizeRef.current;
+    const R = W / 2, hubR = R * 0.16;
+
+    ctx.clearRect(0, 0, W, W);
+    ctx.save();
+    ctx.translate(R, R);
+    ctx.rotate(rotation);
+
+    for (let i = 0; i < N; i++) {
+      const p = prizes[i];
+      const startA = i * SLICE, endA = startA + SLICE, midA = startA + SLICE / 2;
+
+      // Slice
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R - 4, startA, endA); ctx.closePath();
+      const gx = Math.cos(midA), gy = Math.sin(midA);
+      const grd = ctx.createLinearGradient(gx * hubR, gy * hubR, gx * (R - 4), gy * (R - 4));
+      grd.addColorStop(0, adjustColor(p.color, 30));
+      grd.addColorStop(1, p.color || "#c41a2e");
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      // Dark separator
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(startA) * (R - 4), Math.sin(startA) * (R - 4));
+      ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 2; ctx.stroke();
+
+      // Light edge
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(endA) * (R - 4), Math.sin(endA) * (R - 4));
+      ctx.strokeStyle = "rgba(255,255,255,0.06)"; ctx.lineWidth = 1; ctx.stroke();
+
+      // Outer arc highlight
+      ctx.beginPath(); ctx.arc(0, 0, R - 5, startA + 0.02, endA - 0.02);
+      ctx.strokeStyle = "rgba(255,255,255,0.06)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+      // Text
+      ctx.save();
+      ctx.rotate(midA);
+      ctx.fillStyle = "#fff";
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "center";
+
+      // Icon
+      const iconR = R * 0.76;
+      const iconSize = Math.min(R * 0.14, 2 * iconR * Math.sin(SLICE / 2) * 0.5);
+      ctx.font = `${Math.round(iconSize)}px serif`;
+      ctx.fillText(p.icon || "🎁", iconR, 0);
+
+      // Label
+      const labelR = R * 0.50;
+      const maxLabelW = 2 * labelR * Math.sin(SLICE / 2) * 0.78;
+      let labelSize = Math.round(R * 0.095);
+      ctx.font = `800 ${labelSize}px 'Plus Jakarta Sans',sans-serif`;
+      const labelText = p.label || p.name;
+      while (ctx.measureText(labelText).width > maxLabelW && labelSize > 8) {
+        labelSize--;
+        ctx.font = `800 ${labelSize}px 'Plus Jakarta Sans',sans-serif`;
+      }
+      ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 4;
+      ctx.fillText(labelText, labelR, 0);
+      ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
+    // Hub cover
+    ctx.beginPath(); ctx.arc(0, 0, hubR, 0, 2 * Math.PI);
+    const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR);
+    hg.addColorStop(0, "#1a1a28"); hg.addColorStop(1, "#0a0a12");
+    ctx.fillStyle = hg; ctx.fill();
+    ctx.strokeStyle = "rgba(212,32,53,0.5)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+  }, [prizes, N, SLICE]);
+
+  // Init canvas when event loads
+  useEffect(() => {
+    if (!event || N === 0) return;
+    // Small delay to ensure DOM is rendered
+    const timer = setTimeout(() => {
+      const canvas = canvasRef.current;
+      const stage = stageRef.current;
+      if (!canvas || !stage) return;
+      const W = stage.offsetWidth;
+      if (!W) return;
       const DPR = Math.min(window.devicePixelRatio || 1, 2);
       sizeRef.current = W;
       canvas.width = W * DPR; canvas.height = W * DPR;
       canvas.style.width = W + "px"; canvas.style.height = W + "px";
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    }
-    const W = sizeRef.current;
-    const R = W / 2, hubR = R * 0.16;
-    ctx.clearRect(0, 0, W, W);
-    ctx.save(); ctx.translate(R, R); ctx.rotate(rotation);
-    for (let i = 0; i < N; i++) {
-      const p = prizes[i], startA = i * SLICE, endA = startA + SLICE, midA = startA + SLICE / 2;
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R - 4, startA, endA); ctx.closePath();
-      const gx = Math.cos(midA), gy = Math.sin(midA);
-      const grd = ctx.createLinearGradient(gx * hubR, gy * hubR, gx * (R - 4), gy * (R - 4));
-      grd.addColorStop(0, lighten(p.color || "#c41a2e", 30)); grd.addColorStop(1, p.color || "#c41a2e");
-      ctx.fillStyle = grd; ctx.fill();
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(startA) * (R - 4), Math.sin(startA) * (R - 4));
-      ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 2; ctx.stroke();
-      ctx.save(); ctx.rotate(midA); ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
-      ctx.font = `${Math.round(R * 0.12)}px serif`; ctx.fillText(p.icon || "🎁", R * 0.76, 0);
-      let ls = Math.round(R * 0.09);
-      ctx.font = `800 ${ls}px 'Plus Jakarta Sans',sans-serif`;
-      const maxW = 2 * R * 0.5 * Math.sin(SLICE / 2) * 0.78;
-      while (ctx.measureText(p.label || p.name).width > maxW && ls > 8) { ls--; ctx.font = `800 ${ls}px 'Plus Jakarta Sans',sans-serif`; }
-      ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 4;
-      ctx.fillText(p.label || p.name, R * 0.5, 0);
-      ctx.shadowColor = "transparent"; ctx.restore();
-    }
-    ctx.beginPath(); ctx.arc(0, 0, hubR, 0, 2 * Math.PI);
-    const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR);
-    hg.addColorStop(0, "#1a1a28"); hg.addColorStop(1, "#0a0a12");
-    ctx.fillStyle = hg; ctx.fill(); ctx.strokeStyle = "rgba(212,32,53,0.5)"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.restore();
-  }, [prizes, N, SLICE]);
+      canvas.getContext("2d").setTransform(DPR, 0, 0, DPR, 0, 0);
+      drawWheel(angleRef.current);
+      setWheelReady(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [event, N, drawWheel]);
 
-  // Init canvas — redraw whenever event loads or window resizes
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || N === 0) return;
-    const parent = canvas.parentElement;
-    if (!parent) return;
-    const W = Math.min(parent.offsetWidth, parent.offsetHeight) || 400;
-    const DPR = Math.min(window.devicePixelRatio || 1, 2);
-    sizeRef.current = W;
-    canvas.width = W * DPR; canvas.height = W * DPR;
-    canvas.style.width = W + "px"; canvas.style.height = W + "px";
-    canvas.getContext("2d").setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawWheel(angleRef.current);
-  }, [drawWheel, N]);
-
-  // Spin
+  // ============ SPIN ============
   const spin = useCallback(() => {
     if (spinning || N === 0) return;
     setSpinning(true);
@@ -158,29 +258,52 @@ export default function EventPage() {
     const r = Math.random(); let cum = 0, winIdx = N - 1;
     for (let i = 0; i < N; i++) { cum += chances[i]; if (r <= cum) { winIdx = i; break; } }
 
-    const sliceStart = winIdx * SLICE, pad = SLICE * 0.15;
-    const target = sliceStart + pad + Math.random() * (SLICE - 2 * pad);
+    const sliceStart = winIdx * SLICE;
+    const pad = SLICE * 0.15;
+    const targetInSlice = sliceStart + pad + Math.random() * (SLICE - 2 * pad);
     const spins = 8 + Math.floor(Math.random() * 3);
-    const targetRot = -(Math.PI / 2 + target) + spins * 2 * Math.PI;
-    let delta = targetRot - angleRef.current;
+    const targetRotation = -(Math.PI / 2 + targetInSlice) + spins * 2 * Math.PI;
+    let delta = targetRotation - angleRef.current;
     while (delta < 6 * Math.PI) delta += 2 * Math.PI;
 
-    const dur = 7200, t0 = performance.now();
-    let lastS = -1, audioCtx;
-    try { audioCtx = new AudioContext(); } catch(e) {}
-    const tick = (f, v) => { if(!audioCtx)return; try{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.frequency.value=f;o.type="triangle";g.gain.setValueAtTime(v,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.05);o.start();o.stop(audioCtx.currentTime+0.05);}catch(e){} };
+    const dur = 7000 + Math.random() * 500;
+    const t0 = performance.now();
+    let lastS = -1;
+    let audioCtx;
+    try { audioCtx = new AudioContext(); } catch (e) {}
+    const tick = (f, v) => {
+      if (!audioCtx) return;
+      try {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.frequency.value = f; o.type = "triangle";
+        g.gain.setValueAtTime(v, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+        o.start(); o.stop(audioCtx.currentTime + 0.05);
+      } catch (e) {}
+    };
 
     const frame = (now) => {
-      const elapsed = now - t0, p = Math.min(elapsed / dur, 1);
+      const elapsed = now - t0;
+      const p = Math.min(elapsed / dur, 1);
       const ease = 1 - Math.pow(1 - p, 2 + p * 3);
       const a = angleRef.current + delta * ease;
       drawWheel(a);
-      const wAngle = (((-Math.PI / 2) - a) % (2 * Math.PI) + 4 * Math.PI) % (2 * Math.PI);
-      const s = Math.floor(wAngle / SLICE) % N;
-      if (s !== lastS) { lastS = s; tick(600 + (1 - p) * 400, 0.015 + (1 - p) * 0.04); }
+
+      // Tick detection
+      const pointerAngle = -Math.PI / 2;
+      const wheelAngle = ((pointerAngle - a) % (2 * Math.PI) + 4 * Math.PI) % (2 * Math.PI);
+      const s = Math.floor(wheelAngle / SLICE) % N;
+      if (s !== lastS) {
+        lastS = s;
+        const speed = 1 - p;
+        tick(600 + speed * 400 + Math.random() * 200, 0.015 + speed * 0.04);
+      }
+
       if (p < 1) requestAnimationFrame(frame);
       else {
         angleRef.current = a;
+        // Win sound
         [0, 100, 200, 350, 500].forEach((d, i) => setTimeout(() => tick(500 + i * 150, 0.06), d));
         setTimeout(async () => {
           setSpinning(false);
@@ -209,7 +332,7 @@ export default function EventPage() {
     spin();
   };
 
-  const maskUID = (u) => u.length <= 6 ? u.slice(0, 2) + "***" + u.slice(-1) : u.slice(0, 3) + "•••" + u.slice(-2);
+  const maskUID = (u) => u && u.length > 6 ? u.slice(0, 3) + "•••" + u.slice(-2) : u ? u.slice(0, 2) + "***" + u.slice(-1) : "???";
 
   const downloadCSV = () => {
     if (!plays.length) return;
@@ -227,50 +350,78 @@ export default function EventPage() {
   };
 
   const last10 = [...plays].reverse().slice(0, 10);
+  const stageSize = 400; // for LED ring calculation
 
   if (loading) return <div style={{minHeight:"100vh",background:"#06060a",display:"flex",alignItems:"center",justifyContent:"center",color:"#6e7082"}}>Loading...</div>;
   if (!event) return <div style={{minHeight:"100vh",background:"#06060a",display:"flex",alignItems:"center",justifyContent:"center",color:"#6e7082"}}>Event not found. <button onClick={()=>router.push("/")} style={{color:"#d42035",background:"none",border:"none",cursor:"pointer",marginLeft:8}}>Go back</button></div>;
 
   return (
     <div style={{minHeight:"100vh",background:"#06060a",color:"#f2f2f4",fontFamily:"'DM Sans',sans-serif"}}>
-      <div style={{display:"flex",maxWidth:900,margin:"0 auto",padding:"20px 16px",gap:20,alignItems:"flex-start",flexWrap:"wrap",justifyContent:"center"}}>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes popIn { from { transform: scale(0.7); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+        @keyframes ambientPulse { from { opacity: 0.4; transform: scale(0.95) } to { opacity: 1; transform: scale(1.05) } }
+        @keyframes livePulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
+      `}</style>
+
+      <div style={{display:"flex",maxWidth:920,margin:"0 auto",padding:"20px 16px",gap:20,alignItems:"flex-start",flexWrap:"wrap",justifyContent:"center"}}>
         {/* Main column */}
         <div style={{flex:1,minWidth:320,maxWidth:520,display:"flex",flexDirection:"column",alignItems:"center",gap:24}}>
+          {/* Header with logo */}
           <div style={{display:"flex",width:"100%",alignItems:"center",gap:12}}>
-            <button onClick={()=>router.push("/")} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"10px 16px",color:"#fff",cursor:"pointer",fontSize:"0.85rem",fontWeight:600}}>← Back</button>
-            <div style={{flex:1}}>
-              <div style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.2rem",fontWeight:800}}>{event.emoji} {event.name}</div>
-              <div style={{fontSize:"0.75rem",color:"#6e7082"}}>{event.location}</div>
+            <button onClick={()=>router.push("/")} style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:"10px 16px",color:"#fff",cursor:"pointer",fontSize:"0.85rem",fontWeight:600}}>←</button>
+            <img src={LOGO} alt="RedotPay" style={{height:28,width:"auto",filter:"drop-shadow(0 2px 8px rgba(212,32,53,0.2))"}} />
+            <div style={{flex:1,marginLeft:4}}>
+              <div style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.1rem",fontWeight:800}}>{event.emoji} {event.name}</div>
+              <div style={{fontSize:"0.72rem",color:"#6e7082"}}>{event.location}</div>
             </div>
             <LanguageSelector />
           </div>
 
-          {/* Wheel */}
-          <div style={{position:"relative",width:"clamp(300px,80vw,400px)",height:"clamp(300px,80vw,400px)"}}>
-            <div style={{position:"absolute",top:-8,left:"50%",transform:"translateX(-50%)",zIndex:10}}>
-              <svg viewBox="0 0 38 50" fill="none" style={{width:36,height:48,filter:"drop-shadow(0 4px 12px rgba(212,32,53,0.6))"}}>
+          {/* ============ WHEEL STAGE ============ */}
+          <div ref={stageRef} style={{position:"relative",width:"clamp(320px,80vw,420px)",height:"clamp(320px,80vw,420px)"}}>
+            {/* Ambient glow */}
+            <div style={{position:"absolute",inset:-40,borderRadius:"50%",background:"radial-gradient(circle,rgba(212,32,53,0.1) 0%,transparent 65%)",animation:"ambientPulse 4s ease-in-out infinite alternate",pointerEvents:"none"}} />
+
+            {/* LED Ring */}
+            <LEDRing spinning={spinning} containerSize={stageSize} />
+
+            {/* Outer metal ring */}
+            <div style={{position:"absolute",inset:-4,borderRadius:"50%",background:"linear-gradient(135deg,#2a2a2a,#1a1a1a,#2a2a2a)",zIndex:2,boxShadow:"0 0 0 2px rgba(255,255,255,0.08), inset 0 0 0 2px rgba(255,255,255,0.03)"}}>
+              <div style={{position:"absolute",inset:5,borderRadius:"50%",background:"#06060a"}} />
+            </div>
+
+            {/* Canvas */}
+            <canvas ref={canvasRef} style={{position:"absolute",inset:0,width:"100%",height:"100%",borderRadius:"50%",zIndex:3}} />
+
+            {/* Hub */}
+            <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:62,height:62,borderRadius:"50%",background:"radial-gradient(circle at 38% 32%,#1e1e2a,#0a0a12)",border:"3px solid #d42035",boxShadow:"0 0 28px rgba(212,32,53,0.4), 0 0 60px rgba(212,32,53,0.1), inset 0 2px 8px rgba(0,0,0,0.6)",zIndex:6,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <div style={{width:26,height:26,borderRadius:"50%",background:"radial-gradient(circle at 38% 32%,#ff3348,#d42035)",boxShadow:"inset 0 1px 4px rgba(255,255,255,0.3)"}} />
+            </div>
+
+            {/* Pointer */}
+            <div style={{position:"absolute",top:-8,left:"50%",transform:"translateX(-50%)",zIndex:10,filter:"drop-shadow(0 4px 12px rgba(212,32,53,0.6))"}}>
+              <svg viewBox="0 0 38 50" fill="none" style={{width:38,height:50}}>
                 <path d="M19 50 L3 14 Q19 -2 35 14 Z" fill="url(#pg)" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8"/>
                 <defs><linearGradient id="pg" x1="19" y1="0" x2="19" y2="50"><stop offset="0%" stopColor="#fff"/><stop offset="40%" stopColor="#e8e8e8"/><stop offset="100%" stopColor="#999"/></linearGradient></defs>
               </svg>
             </div>
-            <canvas ref={canvasRef} style={{width:"100%",height:"100%",borderRadius:"50%"}}/>
-            <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:56,height:56,borderRadius:"50%",background:"radial-gradient(circle at 38% 32%,#1e1e2a,#0a0a12)",border:"3px solid #d42035",boxShadow:"0 0 24px rgba(212,32,53,0.35)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <div style={{width:22,height:22,borderRadius:"50%",background:"radial-gradient(circle at 38% 32%,#ff3348,#d42035)"}}/>
-            </div>
           </div>
 
+          {/* SPIN Button */}
           <button onClick={handleSpin} disabled={spinning||event.status==="finished"} style={{
             fontFamily:"'Plus Jakarta Sans'",fontSize:"1rem",fontWeight:800,letterSpacing:2.5,textTransform:"uppercase",
             color:"#fff",background:event.status==="finished"?"#333":"linear-gradient(160deg,#d42035,#ff3348,#d42035)",
             border:"none",padding:"18px 64px",borderRadius:100,cursor:event.status==="finished"?"not-allowed":"pointer",
-            opacity:spinning?0.35:1,boxShadow:event.status==="finished"?"none":"0 4px 24px rgba(212,32,53,0.3)",
+            opacity:spinning?0.35:1,boxShadow:event.status==="finished"?"none":"0 4px 24px rgba(212,32,53,0.3), 0 0 0 1px rgba(212,32,53,0.2)",
+            transition:"all 0.25s",
           }}>{event.status==="finished"?t("finished"):t("spin")}</button>
 
           {/* Prize cards */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,width:"100%"}}>
             {prizes.map(p=>(
               <div key={p.id} style={{background:"#0e0e14",border:"1px solid rgba(255,255,255,0.05)",borderRadius:14,padding:"14px 8px 12px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
-                <div style={{width:10,height:10,borderRadius:"50%",background:p.color||"#c41a2e"}}/>
+                <div style={{width:10,height:10,borderRadius:"50%",background:p.color||"#c41a2e",boxShadow:`0 0 8px ${(p.color||"#c41a2e")}55`}} />
                 <div style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"0.75rem",fontWeight:700}}>{p.icon} {p.name}</div>
               </div>
             ))}
@@ -283,7 +434,7 @@ export default function EventPage() {
           </div>
         </div>
 
-        {/* Sidebar */}
+        {/* ============ SIDEBAR ============ */}
         <div style={{width:220,flexShrink:0}}>
           <div style={{background:"#0e0e14",border:"1px solid rgba(255,255,255,0.06)",borderRadius:20,padding:"20px 16px"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,paddingBottom:12,borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
@@ -307,13 +458,13 @@ export default function EventPage() {
         </div>
       </div>
 
-      {/* UID Modal */}
+      {/* ============ MODALS ============ */}
       <Modal show={showUid} onClose={()=>setShowUid(false)}>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:"2.8rem",marginBottom:12}}>💳</div>
           <h2 style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.3rem",fontWeight:800,marginBottom:6}}>{t("enterUid")}</h2>
           <p style={{fontSize:"0.85rem",color:"#6e7082",marginBottom:24}}>{t("uidOnce")}</p>
-          <div style={{...inputStyle,fontSize:"1.4rem",fontWeight:700,letterSpacing:3,marginBottom:8,minHeight:56,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.4rem",fontWeight:700,letterSpacing:3,background:"rgba(255,255,255,0.06)",border:"2px solid rgba(255,255,255,0.1)",borderRadius:14,padding:"14px 18px",marginBottom:8,minHeight:56,display:"flex",alignItems:"center",justifyContent:"center",color:"#f2f2f4"}}>
             {uid||<span style={{color:"#6e7082",fontSize:"0.85rem",letterSpacing:0,fontWeight:400}}>{t("tapNumbers")}</span>}
           </div>
           <div style={{fontSize:"0.78rem",color:"#ff3348",minHeight:22,marginBottom:8}}>{uidError}</div>
@@ -322,18 +473,16 @@ export default function EventPage() {
         </div>
       </Modal>
 
-      {/* Result */}
       <Modal show={!!showResult} onClose={()=>setShowResult(null)}>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:"4rem",marginBottom:12}}>{showResult?.icon}</div>
           <div style={{fontSize:"0.7rem",letterSpacing:2.5,textTransform:"uppercase",color:"#6e7082",fontWeight:700,marginBottom:8}}>{t("youWon")}</div>
           <div style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.6rem",fontWeight:800,marginBottom:6}}>{showResult?.prize}</div>
           <div style={{fontSize:"0.75rem",color:"#6e7082",marginBottom:24}}>UID: {showResult?.uid}</div>
-          <button onClick={()=>setShowResult(null)} style={{...btnStyle("transparent",true),padding:"14px 40px"}}>{t("close")}</button>
+          <button onClick={()=>setShowResult(null)} style={{...btnStyle("rgba(212,32,53,0.15)",false),border:"1px solid rgba(212,32,53,0.3)",padding:"14px 40px",color:"#fff"}}>{t("close")}</button>
         </div>
       </Modal>
 
-      {/* Already Played */}
       <Modal show={!!showAlready} onClose={()=>setShowAlready(null)}>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:"2.8rem",marginBottom:12}}>🔒</div>
@@ -343,7 +492,7 @@ export default function EventPage() {
             <div style={{fontSize:"2.4rem",marginBottom:8}}>{showAlready?.prize_icon}</div>
             <div style={{fontFamily:"'Plus Jakarta Sans'",fontSize:"1.4rem",fontWeight:800}}>{showAlready?.prize_name}</div>
           </div>
-          <button onClick={()=>setShowAlready(null)} style={{...btnStyle("transparent",true),padding:"14px 40px"}}>{t("close")}</button>
+          <button onClick={()=>setShowAlready(null)} style={{...btnStyle("rgba(212,32,53,0.15)",false),border:"1px solid rgba(212,32,53,0.3)",padding:"14px 40px",color:"#fff"}}>{t("close")}</button>
         </div>
       </Modal>
     </div>
