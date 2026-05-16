@@ -135,7 +135,8 @@ function CreateEventModal({ show, onClose, onSave }) {
     }
     setPrizes(u);setErrors("");
   };
-  const addPrize = () => setPrizes([...prizes,{id:"p"+Date.now(),name:"",label:"",icon:"",chance:0,color:prizes.length%2===0?"#c41a2e":"#1a1a30"}]);
+  const SLICE_COLORS = ["#c41a2e","#1a1a30","#e8e8ec"];
+  const addPrize = () => setPrizes([...prizes,{id:"p"+Date.now(),name:"",label:"",icon:"",chance:0,color:SLICE_COLORS[prizes.length%3]}]);
   const removePrize = (idx) => {setPrizes(prizes.filter((_,i)=>i!==idx));};
   const distributeEvenly = () => {
     if(prizes.length===0) return;
@@ -198,7 +199,7 @@ function CreateEventModal({ show, onClose, onSave }) {
                 const alreadyAdded = prizes.some(p=>p.icon===tpl.icon && p.name===tpl.name);
                 return (
                   <button key={tpl.icon+tpl.name} disabled={alreadyAdded} onClick={()=>{
-                    setPrizes([...prizes,{id:"p"+Date.now(),name:tpl.name,label:tpl.label,icon:tpl.icon,chance:0,color:prizes.length%2===0?"#c41a2e":"#1a1a30"}]);
+                    setPrizes([...prizes,{id:"p"+Date.now(),name:tpl.name,label:tpl.label,icon:tpl.icon,chance:0,color:["#c41a2e","#1a1a30","#e8e8ec"][prizes.length%3]}]);
                     setErrors("");
                   }} style={{
                     display:"flex",alignItems:"center",gap:6,padding:"8px 12px",borderRadius:10,

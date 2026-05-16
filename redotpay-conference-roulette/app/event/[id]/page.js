@@ -48,19 +48,27 @@ function adjustColor(hex, amt) {
 }
 
 // ============ LED RING COMPONENT ============
+const NEON_COLORS = [
+  { bg: "#ff3348", glow: "0 0 6px #ff3348, 0 0 14px rgba(255,51,72,0.5)" },    // neon pink/red
+  { bg: "#39ff14", glow: "0 0 6px #39ff14, 0 0 14px rgba(57,255,20,0.5)" },     // neon green
+  { bg: "#bf5fff", glow: "0 0 6px #bf5fff, 0 0 14px rgba(191,95,255,0.5)" },    // neon purple
+  { bg: "#fff01f", glow: "0 0 6px #fff01f, 0 0 14px rgba(255,240,31,0.5)" },    // neon yellow
+  { bg: "#ff69b4", glow: "0 0 6px #ff69b4, 0 0 14px rgba(255,105,180,0.5)" },   // hot pink
+];
+
 function LEDRing({ spinning: isSpinning }) {
   const ringRef = useRef(null);
   const rafRef = useRef(null);
 
-  const count = 36;
+  const count = 40;
   const dots = [];
   for(let i=0;i<count;i++){
     const a = (i/count)*2*Math.PI - Math.PI/2;
-    // Use percentage positioning (50% = center, radius ~47%)
+    const colorIdx = i % NEON_COLORS.length;
     dots.push({
       left: `${50 + Math.cos(a) * 47}%`,
       top: `${50 + Math.sin(a) * 47}%`,
-      isRed: i % 2 === 0,
+      colorIdx,
     });
   }
 
@@ -70,26 +78,29 @@ function LEDRing({ spinning: isSpinning }) {
     if (!dotEls.length) return;
     let off = 0;
     function tick() {
-      off += isSpinning ? 0.012 : 0;
+      off += isSpinning ? 0.015 : 0;
       dotEls.forEach((d,i) => {
         const phase = (i/dotEls.length + off) % 1;
-        d.style.opacity = isSpinning ? (phase < 0.35 ? '1' : '0.12') : '0.15';
-        d.style.boxShadow = isSpinning && phase < 0.35
-          ? (d.dataset.red==='true' ? '0 0 6px #ff3348, 0 0 14px rgba(212,32,53,0.4)' : '0 0 6px #fff, 0 0 14px rgba(255,255,255,0.3)')
-          : 'none';
+        const ci = parseInt(d.dataset.ci);
+        const nc = NEON_COLORS[ci];
+        if (isSpinning) {
+          const lit = phase < 0.35;
+          d.style.opacity = lit ? '1' : '0.08';
+          d.style.boxShadow = lit ? nc.glow : 'none';
+          d.style.background = nc.bg;
+        }
       });
       if (isSpinning) rafRef.current = requestAnimationFrame(tick);
     }
     if(isSpinning) { cancelAnimationFrame(rafRef.current); tick(); }
     else {
       cancelAnimationFrame(rafRef.current);
-      // Idle state: alternating dim glow
       dotEls.forEach((d,i) => {
-        const isRed = d.dataset.red === 'true';
-        d.style.opacity = (i % 3 === 0) ? '0.5' : '0.15';
-        d.style.boxShadow = (i % 3 === 0)
-          ? (isRed ? '0 0 4px rgba(212,32,53,0.3)' : '0 0 4px rgba(255,255,255,0.2)')
-          : 'none';
+        const ci = parseInt(d.dataset.ci);
+        const nc = NEON_COLORS[ci];
+        d.style.background = nc.bg;
+        d.style.opacity = (i % 3 === 0) ? '0.45' : '0.12';
+        d.style.boxShadow = (i % 3 === 0) ? nc.glow.replace('0.5','0.15') : 'none';
       });
     }
     return () => cancelAnimationFrame(rafRef.current);
@@ -98,11 +109,11 @@ function LEDRing({ spinning: isSpinning }) {
   return (
     <div ref={ringRef} style={{position:"absolute",inset:-11,borderRadius:"50%",zIndex:4,pointerEvents:"none"}}>
       {dots.map((d,i)=>(
-        <div key={i} className="led" data-red={d.isRed} style={{
+        <div key={i} className="led" data-ci={d.colorIdx} style={{
           position:"absolute", width:8, height:8, borderRadius:"50%",
-          background: d.isRed ? "#ff3348" : "#fff",
+          background: NEON_COLORS[d.colorIdx].bg,
           left: d.left, top: d.top, transform:"translate(-50%,-50%)",
-          opacity: 0.15, transition:"opacity 0.08s",
+          opacity: 0.12, transition:"opacity 0.08s",
         }}/>
       ))}
     </div>
@@ -202,7 +213,9 @@ export default function EventPage() {
       // Text
       ctx.save();
       ctx.rotate(midA);
-      ctx.fillStyle = "#fff";
+      const isLight = (p.color||"").toLowerCase().startsWith("#e") || (p.color||"").toLowerCase().startsWith("#f") || (p.color||"").toLowerCase().startsWith("#d") && parseInt((p.color||"").slice(1,3),16)>200;
+      const textColor = isLight ? "#1a1a2e" : "#fff";
+      ctx.fillStyle = textColor;
       ctx.textBaseline = "middle";
       ctx.textAlign = "center";
 
@@ -316,7 +329,8 @@ export default function EventPage() {
         ctx.beginPath(); ctx.arc(0, 0, R - 5, sA + 0.02, eA - 0.02);
         ctx.strokeStyle = "rgba(255,255,255,0.06)"; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.save(); ctx.rotate(mA);
-        ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
+        const isLt = (p.color||"").toLowerCase().startsWith("#e") || (p.color||"").toLowerCase().startsWith("#f");
+        ctx.fillStyle = isLt ? "#1a1a2e" : "#fff"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
         const iconR = R * 0.76;
         ctx.font = `${Math.round(Math.min(R * 0.14, 2 * iconR * Math.sin(SLICE / 2) * 0.5))}px serif`;
         ctx.fillText(p.icon || "🎁", iconR, 0);
@@ -326,7 +340,7 @@ export default function EventPage() {
         ctx.font = `800 ${ls}px 'Plus Jakarta Sans',sans-serif`;
         const lt = p.label || p.name;
         while (ctx.measureText(lt).width > maxLW && ls > 8) { ls--; ctx.font = `800 ${ls}px 'Plus Jakarta Sans',sans-serif`; }
-        ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 4;
+        ctx.shadowColor = isLt ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.5)"; ctx.shadowBlur = 4;
         ctx.fillText(lt, labelR, 0);
         ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
         ctx.restore();
