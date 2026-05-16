@@ -22,7 +22,7 @@ const T = {
     back: "← Back", createEvent: "Create Event", untitled: "Untitled prize", minPrizes: "Minimum 2 prizes",
     prizeName: "Prize Name", chance: "Chance", searchEmoji: "🔍 Search emoji...", noResults: "No results",
     enterUid: "Enter your RedotPay UID", uidOnce: "Each UID can only play once per event.", tapNumbers: "Tap numbers below",
-    confirm: "CONFIRM & SPIN", spin: "GIRAR", finished: "EVENT FINISHED", youWon: "You won", close: "Close",
+    confirm: "CONFIRM & SPIN", spin: "SPIN", finished: "EVENT FINISHED", youWon: "You won", close: "Close",
     alreadyPlayed: "Already played!", alreadyWon: "This UID already won:", prizeWon: "Prize won",
     liveFeed: "Live Feed", waiting: "Waiting...", settings: "Settings", history: "History",
     exportCsv: "⬇ Export CSV", finishEvent: "🏁 Finish Event", finishConfirm: "⚠️ Confirm — Finish & Download",
