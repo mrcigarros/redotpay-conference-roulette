@@ -94,6 +94,17 @@ export default function EventPage() {
     const canvas = canvasRef.current;
     if (!canvas || N === 0) return;
     const ctx = canvas.getContext("2d");
+    // Ensure canvas is sized
+    if (!sizeRef.current) {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      const W = Math.min(parent.offsetWidth, parent.offsetHeight) || 400;
+      const DPR = Math.min(window.devicePixelRatio || 1, 2);
+      sizeRef.current = W;
+      canvas.width = W * DPR; canvas.height = W * DPR;
+      canvas.style.width = W + "px"; canvas.style.height = W + "px";
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
     const W = sizeRef.current;
     const R = W / 2, hubR = R * 0.16;
     ctx.clearRect(0, 0, W, W);
@@ -124,18 +135,20 @@ export default function EventPage() {
     ctx.restore();
   }, [prizes, N, SLICE]);
 
-  // Init canvas
+  // Init canvas — redraw whenever event loads or window resizes
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !canvas.parentElement) return;
-    const W = canvas.parentElement.offsetWidth;
+    if (!canvas || N === 0) return;
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    const W = Math.min(parent.offsetWidth, parent.offsetHeight) || 400;
     const DPR = Math.min(window.devicePixelRatio || 1, 2);
     sizeRef.current = W;
     canvas.width = W * DPR; canvas.height = W * DPR;
     canvas.style.width = W + "px"; canvas.style.height = W + "px";
     canvas.getContext("2d").setTransform(DPR, 0, 0, DPR, 0, 0);
     drawWheel(angleRef.current);
-  }, [drawWheel, event]);
+  }, [drawWheel, N]);
 
   // Spin
   const spin = useCallback(() => {
@@ -233,7 +246,7 @@ export default function EventPage() {
           </div>
 
           {/* Wheel */}
-          <div style={{position:"relative",width:"clamp(300px,80vw,400px)",aspectRatio:"1"}}>
+          <div style={{position:"relative",width:"clamp(300px,80vw,400px)",height:"clamp(300px,80vw,400px)"}}>
             <div style={{position:"absolute",top:-8,left:"50%",transform:"translateX(-50%)",zIndex:10}}>
               <svg viewBox="0 0 38 50" fill="none" style={{width:36,height:48,filter:"drop-shadow(0 4px 12px rgba(212,32,53,0.6))"}}>
                 <path d="M19 50 L3 14 Q19 -2 35 14 Z" fill="url(#pg)" stroke="rgba(255,255,255,0.5)" strokeWidth="0.8"/>
