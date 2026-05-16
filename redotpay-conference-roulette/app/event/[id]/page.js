@@ -48,31 +48,29 @@ function adjustColor(hex, amt) {
 }
 
 // ============ LED RING COMPONENT ============
-function LEDRing({ spinning: isSpinning, containerSize }) {
+function LEDRing({ spinning: isSpinning }) {
   const ringRef = useRef(null);
   const rafRef = useRef(null);
-  const [dots, setDots] = useState([]);
 
-  useEffect(() => {
-    const size = containerSize + 22;
-    const cx = size/2, cy = size/2, r = cx - 4;
-    const count = 36;
-    const arr = [];
-    for(let i=0;i<count;i++){
-      const a = (i/count)*2*Math.PI - Math.PI/2;
-      arr.push({ x: cx+Math.cos(a)*r, y: cy+Math.sin(a)*r, isRed: i%2===0 });
-    }
-    setDots(arr);
-  }, [containerSize]);
+  const count = 36;
+  const dots = [];
+  for(let i=0;i<count;i++){
+    const a = (i/count)*2*Math.PI - Math.PI/2;
+    // Use percentage positioning (50% = center, radius ~47%)
+    dots.push({
+      left: `${50 + Math.cos(a) * 47}%`,
+      top: `${50 + Math.sin(a) * 47}%`,
+      isRed: i % 2 === 0,
+    });
+  }
 
   useEffect(() => {
     if (!ringRef.current) return;
     const dotEls = ringRef.current.querySelectorAll('.led');
     if (!dotEls.length) return;
     let off = 0;
-    const speed = isSpinning ? 0.012 : 0;
     function tick() {
-      off += speed;
+      off += isSpinning ? 0.012 : 0;
       dotEls.forEach((d,i) => {
         const phase = (i/dotEls.length + off) % 1;
         d.style.opacity = isSpinning ? (phase < 0.35 ? '1' : '0.12') : '0.15';
@@ -80,12 +78,12 @@ function LEDRing({ spinning: isSpinning, containerSize }) {
           ? (d.dataset.red==='true' ? '0 0 6px #ff3348, 0 0 14px rgba(212,32,53,0.4)' : '0 0 6px #fff, 0 0 14px rgba(255,255,255,0.3)')
           : 'none';
       });
-      rafRef.current = requestAnimationFrame(tick);
+      if (isSpinning) rafRef.current = requestAnimationFrame(tick);
     }
     if(isSpinning) { cancelAnimationFrame(rafRef.current); tick(); }
     else { cancelAnimationFrame(rafRef.current); dotEls.forEach(d => { d.style.opacity='0.15'; d.style.boxShadow='none'; }); }
     return () => cancelAnimationFrame(rafRef.current);
-  }, [isSpinning, dots]);
+  }, [isSpinning]);
 
   return (
     <div ref={ringRef} style={{position:"absolute",inset:-11,borderRadius:"50%",zIndex:1}}>
@@ -93,7 +91,7 @@ function LEDRing({ spinning: isSpinning, containerSize }) {
         <div key={i} className="led" data-red={d.isRed} style={{
           position:"absolute", width:8, height:8, borderRadius:"50%",
           background: d.isRed ? "#ff3348" : "#fff",
-          left: d.x, top: d.y, transform:"translate(-50%,-50%)",
+          left: d.left, top: d.top, transform:"translate(-50%,-50%)",
           opacity: 0.15, transition:"opacity 0.08s",
         }}/>
       ))}
@@ -252,18 +250,19 @@ export default function EventPage() {
 
   // ============ SPIN ============
   const spin = useCallback(() => {
-    if (spinning || N === 0) return;
+    if (spinning || N === 0 || !sizeRef.current) return;
     setSpinning(true);
     const chances = prizes.map(p => (p.chance || 0) / 100);
     const r = Math.random(); let cum = 0, winIdx = N - 1;
     for (let i = 0; i < N; i++) { cum += chances[i]; if (r <= cum) { winIdx = i; break; } }
 
+    const startAngle = angleRef.current;
     const sliceStart = winIdx * SLICE;
     const pad = SLICE * 0.15;
     const targetInSlice = sliceStart + pad + Math.random() * (SLICE - 2 * pad);
     const spins = 8 + Math.floor(Math.random() * 3);
     const targetRotation = -(Math.PI / 2 + targetInSlice) + spins * 2 * Math.PI;
-    let delta = targetRotation - angleRef.current;
+    let delta = targetRotation - startAngle;
     while (delta < 6 * Math.PI) delta += 2 * Math.PI;
 
     const dur = 7000 + Math.random() * 500;
@@ -283,12 +282,59 @@ export default function EventPage() {
       } catch (e) {}
     };
 
+    // Direct canvas draw during animation (bypass React re-renders)
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const W = sizeRef.current;
+
+    function drawDirect(rotation) {
+      const R = W / 2, hubR = R * 0.16;
+      ctx.clearRect(0, 0, W, W);
+      ctx.save(); ctx.translate(R, R); ctx.rotate(rotation);
+      for (let i = 0; i < N; i++) {
+        const p = prizes[i];
+        const sA = i * SLICE, eA = sA + SLICE, mA = sA + SLICE / 2;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R - 4, sA, eA); ctx.closePath();
+        const gx = Math.cos(mA), gy = Math.sin(mA);
+        const grd = ctx.createLinearGradient(gx * hubR, gy * hubR, gx * (R - 4), gy * (R - 4));
+        grd.addColorStop(0, adjustColor(p.color, 30));
+        grd.addColorStop(1, p.color || "#c41a2e");
+        ctx.fillStyle = grd; ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(sA) * (R - 4), Math.sin(sA) * (R - 4));
+        ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, R - 5, sA + 0.02, eA - 0.02);
+        ctx.strokeStyle = "rgba(255,255,255,0.06)"; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.save(); ctx.rotate(mA);
+        ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.textAlign = "center";
+        const iconR = R * 0.76;
+        ctx.font = `${Math.round(Math.min(R * 0.14, 2 * iconR * Math.sin(SLICE / 2) * 0.5))}px serif`;
+        ctx.fillText(p.icon || "🎁", iconR, 0);
+        const labelR = R * 0.50;
+        const maxLW = 2 * labelR * Math.sin(SLICE / 2) * 0.78;
+        let ls = Math.round(R * 0.095);
+        ctx.font = `800 ${ls}px 'Plus Jakarta Sans',sans-serif`;
+        const lt = p.label || p.name;
+        while (ctx.measureText(lt).width > maxLW && ls > 8) { ls--; ctx.font = `800 ${ls}px 'Plus Jakarta Sans',sans-serif`; }
+        ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 4;
+        ctx.fillText(lt, labelR, 0);
+        ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.16, 0, 2 * Math.PI);
+      const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.16);
+      hg.addColorStop(0, "#1a1a28"); hg.addColorStop(1, "#0a0a12");
+      ctx.fillStyle = hg; ctx.fill();
+      ctx.strokeStyle = "rgba(212,32,53,0.5)"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
+    }
+
     const frame = (now) => {
       const elapsed = now - t0;
       const p = Math.min(elapsed / dur, 1);
       const ease = 1 - Math.pow(1 - p, 2 + p * 3);
-      const a = angleRef.current + delta * ease;
-      drawWheel(a);
+      const a = startAngle + delta * ease;
+      drawDirect(a);
 
       // Tick detection
       const pointerAngle = -Math.PI / 2;
@@ -350,7 +396,6 @@ export default function EventPage() {
   };
 
   const last10 = [...plays].reverse().slice(0, 10);
-  const stageSize = 400; // for LED ring calculation
 
   if (loading) return <div style={{minHeight:"100vh",background:"#06060a",display:"flex",alignItems:"center",justifyContent:"center",color:"#6e7082"}}>Loading...</div>;
   if (!event) return <div style={{minHeight:"100vh",background:"#06060a",display:"flex",alignItems:"center",justifyContent:"center",color:"#6e7082"}}>Event not found. <button onClick={()=>router.push("/")} style={{color:"#d42035",background:"none",border:"none",cursor:"pointer",marginLeft:8}}>Go back</button></div>;
@@ -384,7 +429,7 @@ export default function EventPage() {
             <div style={{position:"absolute",inset:-40,borderRadius:"50%",background:"radial-gradient(circle,rgba(212,32,53,0.1) 0%,transparent 65%)",animation:"ambientPulse 4s ease-in-out infinite alternate",pointerEvents:"none"}} />
 
             {/* LED Ring */}
-            <LEDRing spinning={spinning} containerSize={stageSize} />
+            <LEDRing spinning={spinning} />
 
             {/* Outer metal ring */}
             <div style={{position:"absolute",inset:-4,borderRadius:"50%",background:"linear-gradient(135deg,#2a2a2a,#1a1a1a,#2a2a2a)",zIndex:2,boxShadow:"0 0 0 2px rgba(255,255,255,0.08), inset 0 0 0 2px rgba(255,255,255,0.03)"}}>
